@@ -1,0 +1,14 @@
+# dependencies
+/node_modules
+
+#development
+/development
+
+# production
+/build
+
+# misc
+npm-debug.log*
+
+# This contains secrets.
+*.env
