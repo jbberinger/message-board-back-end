@@ -1,6 +1,12 @@
 import express, { Router, Request, Response, NextFunction } from 'express';
-import { newUser } from '../database/database';
-
+import {
+  signup,
+  login,
+  getPasswordHashFromEmail,
+  checkEmailAvailability,
+} from '../database/database';
+import bcrypt from 'bcryptjs';
+import passport from 'passport';
 const router = Router();
 
 router.get('/', (req: Request, res: Response, next: NextFunction) => {
@@ -14,28 +20,64 @@ interface User {
   password: string;
 }
 
-// Validates email and password for signup.
-const validUser = (user: User) => {
-  const validEmail = typeof user.email == 'string' && user.email.trim() != '';
-  const validPassword =
-    typeof user.password == 'string' &&
-    user.password.trim() != '' &&
-    user.password.length >= 6;
-  return validEmail && validPassword;
-};
-
-// Posts new user if valid
-router.post('/signup', (req: Request, res: Response, next: NextFunction) => {
-  const { email, password, username } = req.query;
-  console.log(`email: ${email} pass: ${password} user: ${username}`);
-  if (true) {
-    newUser(email, password, username);
+// Checks if email is available for signup
+router.post(
+  '/signup/emailavailable',
+  async (req: Request, res: Response, next: NextFunction) => {
+    const email = req.body.email;
+    const result: boolean | undefined = await checkEmailAvailability(email);
     res.json({
-      message: '✅',
+      success: result,
     });
-  } else {
-    next(new Error('Invalid User'));
-  }
-});
+  },
+);
+
+// new user signup
+router.post(
+  '/signup/finish',
+  (req: Request, res: Response, next: NextFunction) => {
+    const { email, password } = req.body;
+    console.log(`email: ${email} pass: ${password}`);
+
+    // hashes password with salting and attempts to add user to database
+    const saltCount = 13;
+    bcrypt.hash(password, saltCount, (err, passwordHash) => {
+      if (err) {
+        console.error('bcrypt:', err);
+      } else {
+        try {
+          signup(email, passwordHash);
+        } catch (err) {
+          next(err);
+        }
+      }
+    });
+
+    res.json({
+      email: email,
+      message: 'signed up ✅',
+    });
+  },
+);
+
+// user login
+router.post(
+  '/login',
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { username, password } = req.body;
+    await console.log(`username: ${username} password: ${password}`);
+    try {
+      // attempts passport authentication with local strategy
+      await passport.authenticate('local', {
+        successRedirect: '/',
+        failureRedirect: '/login',
+      });
+      console.log('ok');
+      await res.redirect('/');
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 export default router;

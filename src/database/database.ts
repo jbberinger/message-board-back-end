@@ -61,18 +61,15 @@ export const testDBConnection = async () => {
   }
 };
 
-export const newUser = async (
-  email: string,
-  password: string,
-  username: string,
-) => {
+// creates new user account if email and username are untaken
+export const signup = async (email: string, password: string) => {
   let client: PoolClient;
   try {
     client = await pool.connect();
     try {
       const res: QueryResult = await client.query(
-        'INSERT INTO user_account (email, password, username) VALUES($1, $2, $3)',
-        [email, password, username],
+        'INSERT INTO user_account (email, password) VALUES($1, $2)',
+        [email, password],
       );
     } catch (err) {
       console.error(err);
@@ -84,18 +81,99 @@ export const newUser = async (
   }
 };
 
-// export const connectToDatabase = async () => {
-//   try {
-//     await client.connect();
-//     const dateRes: QueryResult = await client.query('SELECT NOW()');
-//     console.log('connected to database successfully at ' + dateRes.rows[0].now);
-//     await newUser('jbberinger@gmail.com', '123456789', 'jbberinger');
-//     const userAccounts: QueryResult = await client.query(
-//       'SELECT * FROM user_account',
-//     );
-//     console.table(userAccounts.rows[0]);
-//     client.end();
-//   } catch (err) {
-//     console.log(err);
-//   }
-// };
+// Checks if email is in use
+export const checkEmailAvailability = async (
+  email: string,
+): Promise<boolean | undefined> => {
+  try {
+    const result: QueryResult = await pool.query(
+      'SELECT EXISTS(SELECT * FROM user_account WHERE email = $1);',
+      [email],
+    );
+    return !result.rows[0].exists;
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+// retreives password hash from email
+export const getPasswordHashFromEmail = async (
+  email: string,
+): Promise<string | undefined> => {
+  console.log('db getPasswordHashFromEmail -> email: ', email);
+  try {
+    const result: QueryResult = await pool.query(
+      'SELECT password FROM user_account WHERE email = $1 LIMIT 1',
+      [email],
+    );
+    return result.rows[0].password;
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+// retrieves user id from email
+export const getIdFromEmail = async (
+  email: string,
+): Promise<string | undefined> => {
+  console.log('db getIdFromEmail -> email: ', email);
+  try {
+    const result: QueryResult = await pool.query(
+      'SELECT user_id FROM user_account WHERE email = $1 LIMIT 1',
+      [email],
+    );
+    return result.rows[0].user_id;
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+// verfies email and password for user login and updates
+// login log if successful
+export const login = async (email: string, password: string) => {
+  let client: PoolClient;
+  console.log('db login -> email and pass', email, password);
+
+  client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const loginRes: QueryResult = await client.query(
+      'SELECT * FROM user_account WHERE (email = $1 AND password = $2) LIMIT 1',
+      [email, password],
+    );
+    const loginLogRes: QueryResult = await client.query(
+      'INSERT INTO login_log (user_id) VALUES ($1)',
+      [loginRes.rows[0].user_id],
+    );
+    await client.query('COMMIT');
+    console.log(loginLogRes.rows[0]);
+  } catch (err) {
+    client.query('ROLLBACK');
+    console.error(err);
+  } finally {
+    client.release();
+  }
+};
+
+export const userLoginCount = async (email: string) => {
+  let client: PoolClient;
+  try {
+    client = await pool.connect();
+    try {
+      const loginCount: QueryResult = await client.query(
+        `SELECT user_account.user_id, COUNT(*) 
+          FROM user_account JOIN login_log 
+          ON (user_account.email = $1 AND user_account.user_id = login_log.user_id)
+          GROUP BY user_account.user_id;`,
+        [email],
+      );
+      console.log(loginCount.rows[0]);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error(err);
+  }
+};
