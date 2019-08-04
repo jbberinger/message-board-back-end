@@ -37,25 +37,30 @@ router.post(
   '/signup/finish',
   (req: Request, res: Response, next: NextFunction) => {
     const { email, password } = req.body;
-    console.log(`email: ${email} pass: ${password}`);
+    // console.log(`email: ${email} pass: ${password}`);
 
     // hashes password with salting and attempts to add user to database
     const saltCount = 13;
-    bcrypt.hash(password, saltCount, (err, passwordHash) => {
+    bcrypt.hash(password, saltCount, async (err, passwordHash) => {
       if (err) {
         console.error('bcrypt:', err);
       } else {
         try {
-          signup(email, passwordHash);
+          if (await signup(email, passwordHash)) {
+            res.status(201).json({
+              email: email,
+              message: 'sign up successful ✅',
+            });
+          } else {
+            res.status(400).json({
+              email: email,
+              message: 'sign up failed ❌',
+            });
+          }
         } catch (err) {
           next(err);
         }
       }
-    });
-
-    res.json({
-      email: email,
-      message: 'signed up ✅',
     });
   },
 );
@@ -63,21 +68,34 @@ router.post(
 // user login
 router.post(
   '/login',
-  async (req: Request, res: Response, next: NextFunction) => {
-    const { username, password } = req.body;
-    await console.log(`username: ${username} password: ${password}`);
-    try {
-      // attempts passport authentication with local strategy
-      await passport.authenticate('local', {
-        successRedirect: '/',
-        failureRedirect: '/login',
-      });
-      console.log('ok');
-      await res.redirect('/');
-    } catch (err) {
-      next(err);
-    }
+  passport.authenticate('local'),
+  (req: Request, res: Response, next: NextFunction) => {
+    console.log(`---> ${JSON.stringify(req.session)}`);
+    res.status(200).json({
+      message: 'log in successful ✅',
+    });
   },
 );
+
+// router.post('/login', (req: Request, res: Response, next: NextFunction) => {
+//   console.log('inside POST /login callback');
+//   passport.authenticate('local', (err, user, info) => {
+//     console.log('Inside passport.authenticate() callback');
+//     console.log(
+//       `req.session.passport: ${JSON.stringify(req.session!.passport)}`,
+//     );
+//     console.log(`req.user: ${JSON.stringify(req.user)}`);
+//     req.login(user, err => {
+//       console.log('Inside req.login() callback');
+//       console.log(
+//         `req.session.passport: ${JSON.stringify(req.session!.passport)}`,
+//       );
+//       console.log(`req.user: ${JSON.stringify(req.user)}`);
+//       return res.status(200).json({
+//         message: 'log in successful ✅',
+//       });
+//     });
+//   })(req, res, next);
+// });
 
 export default router;

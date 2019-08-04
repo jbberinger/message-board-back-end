@@ -16,7 +16,7 @@ const localStrategy = new LocalStrategy.Strategy(
     // checks for valid username and password
     try {
       const passwordHash: string | undefined = await getPasswordHashFromEmail(
-        password,
+        email,
       );
       if (!passwordHash) {
         return done(null, false, {
@@ -25,16 +25,28 @@ const localStrategy = new LocalStrategy.Strategy(
         });
       } else {
         try {
-          await bcrypt.compare(password, passwordHash, (err, isMatch) => {
+          await bcrypt.compare(password, passwordHash, async (err, isMatch) => {
             if (err) {
               return done(err);
             } else if (isMatch) {
               try {
-                await login(email, passwordHash);
-                return done(null, true, {
-                  success: true,
-                  email: email,
-                });
+                const loginRes = await login(email, passwordHash);
+
+                const user = {
+                  email: loginRes.email,
+                  username: loginRes.username,
+                  topic_count: loginRes.topic_count,
+                  post_count: loginRes.post_count,
+                  likes_given: loginRes.likes_given,
+                  likes_received: loginRes.likes_received,
+                  bio: loginRes.bio,
+                  name: loginRes.name,
+                  location: loginRes.location,
+                  timezone: loginRes.timezone,
+                  signup_date: loginRes.signup_date,
+                };
+
+                return done(null, user);
               } catch (err) {
                 return done(err);
               }

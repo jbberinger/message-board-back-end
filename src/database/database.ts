@@ -62,22 +62,29 @@ export const testDBConnection = async () => {
 };
 
 // creates new user account if email and username are untaken
-export const signup = async (email: string, password: string) => {
+export const signup = async (
+  email: string,
+  password: string,
+): Promise<boolean> => {
   let client: PoolClient;
+  const defaultUserName = email.match(/.+(?=\@)/)![0];
   try {
     client = await pool.connect();
     try {
       const res: QueryResult = await client.query(
-        'INSERT INTO user_account (email, password) VALUES($1, $2)',
-        [email, password],
+        'INSERT INTO user_account (email, password, username) VALUES($1, $2, $3)',
+        [email, password, defaultUserName],
       );
+      return true;
     } catch (err) {
       console.error(err);
+      return false;
     } finally {
       client.release();
     }
   } catch (err) {
     console.error(err);
+    return false;
   }
 };
 
@@ -122,6 +129,7 @@ export const getIdFromEmail = async (
       'SELECT user_id FROM user_account WHERE email = $1 LIMIT 1',
       [email],
     );
+    await console.log(result);
     return result.rows[0].user_id;
   } catch (err) {
     console.error(err);
@@ -130,10 +138,10 @@ export const getIdFromEmail = async (
 
 // verfies email and password for user login and updates
 // login log if successful
-export const login = async (email: string, password: string) => {
+export const login = async (email: string, password: string): Promise<any> => {
   let client: PoolClient;
   console.log('db login -> email and pass', email, password);
-
+  let user: any;
   client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -141,17 +149,19 @@ export const login = async (email: string, password: string) => {
       'SELECT * FROM user_account WHERE (email = $1 AND password = $2) LIMIT 1',
       [email, password],
     );
+    user = loginRes.rows[0];
+    await console.log(`loginres -> ${loginRes.rows[0].user_id}`);
     const loginLogRes: QueryResult = await client.query(
       'INSERT INTO login_log (user_id) VALUES ($1)',
       [loginRes.rows[0].user_id],
     );
     await client.query('COMMIT');
-    console.log(loginLogRes.rows[0]);
   } catch (err) {
     client.query('ROLLBACK');
     console.error(err);
   } finally {
     client.release();
+    return user;
   }
 };
 

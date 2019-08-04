@@ -1,16 +1,13 @@
+require('dotenv').config();
 import express, { Application, Request, Response, NextFunction } from 'express';
 import session from 'express-session';
+import passport from 'passport';
+import uuid from 'uuid/v4';
+import cors from 'cors';
 import auth from './routes/auth';
 import { testDBConnection, userLoginCount } from './database/database';
-import passport from 'passport';
 import localStrategy from './strategies/localStrategy';
-import {
-  signup,
-  login,
-  getPasswordHashFromEmail,
-  checkEmailAvailability,
-  getIdFromEmail,
-} from './database/database';
+import { getIdFromEmail } from './database/database';
 const server: Application = express();
 
 // DEVELOPMENT TESTS
@@ -19,13 +16,27 @@ testDBConnection();
 // parses incomming json requests
 server.use(express.json());
 
+server.use(cors({ credentials: true, origin: 'http://localhost:3000' }));
+
+server.set('trust proxy', 1);
+
 // express session
 server.use(
   session({
-    secret: 'process.env.SESSION_SECRET',
+    name: 'message_board',
+    genid: req => {
+      console.log('inside session middleware');
+      console.log(req.sessionID);
+      return uuid();
+    },
+    secret: process.env.SESSION_SECRET || 'keyboard_cat123',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: true },
+    cookie: {
+      httpOnly: true,
+      secure: false,
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    },
   }),
 );
 
@@ -36,10 +47,13 @@ server.use(passport.session());
 passport.use(localStrategy);
 
 passport.serializeUser((user: any, done) => {
-  done(null, getIdFromEmail(user.email));
+  console.log('serialize user -> ', user);
+  done(null, { ...user });
 });
-passport.deserializeUser((id: any, done) => {
-  done(null, id);
+
+passport.deserializeUser((serializedUser: any, done) => {
+  console.log('deserialize user from id -> ', serializedUser);
+  done(null, { ...serializedUser });
 });
 
 // handles all user authorization routes
