@@ -47,6 +47,11 @@ router.post(
       } else {
         try {
           if (await signup(email, passwordHash)) {
+            req.login(req.user, err => {
+              if (err) {
+                next(err);
+              }
+            });
             res.status(201).json({
               email: email,
               message: 'sign up successful ✅',
@@ -74,6 +79,32 @@ router.post(
     res.status(200).json({
       message: 'log in successful ✅',
     });
+  },
+);
+
+router.post('/logout', (req: Request, res: Response, next: NextFunction) => {
+  console.log(`---> ${JSON.stringify(req.session)}`);
+  req.logout();
+  res.status(200).json({
+    message: 'log out successful ✅',
+  });
+});
+
+// check if logged in
+router.get(
+  '/checkauthentication',
+  (req: Request, res: Response, next: NextFunction) => {
+    const isAuth = req.isAuthenticated();
+    console.log(`checkauthentication ---> ${isAuth}`);
+    if (isAuth) {
+      res.status(200).json({
+        message: 'user is authorized',
+      });
+    } else {
+      res.status(401).json({
+        message: 'user is not authorized',
+      });
+    }
   },
 );
 
